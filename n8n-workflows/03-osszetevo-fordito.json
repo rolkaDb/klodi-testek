@@ -58,7 +58,7 @@
     },
     {
       "parameters": {
-        "modelName": "models/gemini-3.7-flash",
+        "modelName": "models/gemini-3-flash-preview",
         "options": {
           "temperature": 0
         }
