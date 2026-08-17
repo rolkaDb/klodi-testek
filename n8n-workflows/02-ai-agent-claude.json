@@ -1,0 +1,125 @@
+{
+  "name": "02 - AI Agent (Claude)",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "name": "Chat indítás",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [-280, 0],
+      "webhookId": "b2000000-0000-4000-8000-0000000000ff"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Magyarul válaszoló, tömör asszisztens vagy.\n\nEszközeid:\n- `Kalkulator`: pontos számoláshoz. Fejben SOHA ne számolj, mindig ezt használd.\n- `idojaras`: időjárás lekérése. Koordinátát vár tizedes fokban — a városnevet neked kell koordinátává alakítanod a saját tudásodból.\n\nSzabályok:\n- Ha egy kérdés eszközt igényel, használd. Ne találgass.\n- Ha az eszköz hibát ad vissza, mondd meg őszintén, ne találj ki adatot.\n- Röviden válaszolj, 2-4 mondatban, hacsak nem kérnek részletet."
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-5",
+          "cachedResultName": "Claude Sonnet 5"
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "Claude",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.5,
+      "position": [-160, 220]
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 20
+      },
+      "id": "b2000000-0000-4000-8000-000000000004",
+      "name": "Memória",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [0, 220]
+    },
+    {
+      "parameters": {},
+      "id": "b2000000-0000-4000-8000-000000000005",
+      "name": "Kalkulator",
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [160, 220]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Aktuális időjárás és mai előrejelzés lekérése bármely helyszínre a világon. A helyszín földrajzi koordinátáit tizedes fokban kell megadnod (példa: Budapest = latitude 47.4979, longitude 19.0402). A válasz Celsiusban és km/h-ban érkezik.",
+        "url": "https://api.open-meteo.com/v1/forecast",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "latitude",
+              "value": "={{ $fromAI('latitude', 'A helyszín földrajzi szélessége tizedes fokban, például Budapest esetén 47.4979', 'number') }}"
+            },
+            {
+              "name": "longitude",
+              "value": "={{ $fromAI('longitude', 'A helyszín földrajzi hosszúsága tizedes fokban, például Budapest esetén 19.0402', 'number') }}"
+            },
+            {
+              "name": "current",
+              "value": "temperature_2m,weather_code,wind_speed_10m"
+            },
+            {
+              "name": "daily",
+              "value": "temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+            },
+            {
+              "name": "timezone",
+              "value": "auto"
+            },
+            {
+              "name": "forecast_days",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000006",
+      "name": "idojaras",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [320, 220]
+    }
+  ],
+  "connections": {
+    "Chat indítás": {
+      "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
+    },
+    "Claude": {
+      "ai_languageModel": [[{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Memória": {
+      "ai_memory": [[{ "node": "AI Agent", "type": "ai_memory", "index": 0 }]]
+    },
+    "Kalkulator": {
+      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "idojaras": {
+      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

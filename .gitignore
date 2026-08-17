@@ -1,0 +1,7 @@
+# Claude Code személyes beállításai – gépenként más
+.claude/settings.local.json
+
+# Windows
+Thumbs.db
+desktop.ini
+.DS_Store
