@@ -53,6 +53,43 @@ Ez nem konfigurációs hiba. Védekezés a node Settings fülén:
 A második azért fontos, mert enélkül egy webhookos workflow **üres törzsű 200-as
 választ** ad, ha a lánc közepén elszáll egy node.
 
+## A mentés NEM élesítés
+
+Az n8n 2-ben a workflow-nak **draftja és publikált verziója** van. A `Ctrl+S`
+egy új verziót ment, de a futó webhook továbbra is a korábbi, élesített
+pillanatképet használja. A `workflow_entity.activeVersionId` mutatja, melyik fut.
+
+Tünet: átírsz egy Code node-ot, mented, és a webhook változatlanul a régi
+viselkedést produkálja. Az adatbázisban a draft már az új kódot tartalmazza,
+tehát minden „helyesnek" látszik.
+
+**Megoldás: a mentés után nyomj `Publish`-t.**
+
+Ellenőrzés, hogy tényleg az új verzió fut:
+
+```sql
+-- melyik pillanatkép él élesben
+SELECT activeVersionId FROM workflow_entity WHERE name LIKE '03%' AND active = 1;
+-- a pillanatképek maguk
+SELECT versionId, createdAt FROM workflow_history WHERE workflowId = '...' ORDER BY createdAt;
+```
+
+## Az LLM „majdnem strukturált" kimenete
+
+Ha a modelltől soralapú formátumot kérsz (`KULCS: érték`), számíts rá, hogy a
+második sort **behúzza**. Egy szigorú `^KULCS:` regex ilyenkor némán nem talál,
+és a hiányzó mezőből rossz következtetés lesz.
+
+Helyesen:
+
+```javascript
+new RegExp('^\\s*' + kulcs + ':\\s*(.*)$', 'mi')
+```
+
+És ami fontosabb: **különböztesd meg a „nincs ott a sor" és a „ott van, üres"
+esetet.** Az előbbi formátumhiba, amire le kell állni; az utóbbi valódi adat.
+Egyetlen `null` visszaadása a kettőre elrejti a hibát.
+
 ## Hibakeresés
 
 A node alatti **Logs** panel mindig kiírja a szolgáltatótól kapott nyers hibát.

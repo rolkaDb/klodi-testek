@@ -31,6 +31,11 @@ Helyes sorrend: **Overview → Create Workflow → ⋯ → Import from File…**
 Import után a modell-node-okba (`Gemini`, `Embeddings`) **kézzel kell
 kiválasztani a credentialt** — az sosincs benne az exportált JSON-ban.
 
+> **A mentés nem élesítés.** A `Ctrl+S` új verziót ment, de a futó webhook a
+> korábbi, publikált pillanatképet használja. Szerkesztés után **nyomj
+> `Publish`-t**, különben a régi viselkedést kapod, miközben az adatbázisban
+> már az új kód áll.
+
 ## A workflow-k
 
 | Fájl | Mi ez | Kell hozzá |
