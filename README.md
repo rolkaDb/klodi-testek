@@ -103,10 +103,29 @@ leginkább hasonló szövegdarabot, és odaadjuk neki a kérdés mellé.
 
 Előbb a `04a`-t futtasd, csak utána a `04b` chatjét.
 
-**Két korlát:**
+### Qdrant
 
-- A `Simple Vector Store` **memóriában él**. Az n8n újraindítása után újra kell
-  futtatni a `04a`-t. Éles használatra Qdrant (Docker) vagy Supabase pgvector.
+A vektortár **Qdrant**, natív Windows binárisként — nem kell hozzá Docker és WSL:
+
+```
+D:\qdrant\qdrant.exe        # indítás: a saját mappájából futtatva
+```
+
+REST a `6333`-on, webes felület a `http://localhost:6333/dashboard` címen, az
+adatok a `D:\qdrant\storage` alatt. **Az n8n újraindítását túléli** — ez volt a
+váltás egyetlen oka. (A korábbi `Simple Vector Store` memóriában élt, és minden
+újraindítás után újra kellett tölteni; az a változat a git history-ban megvan.)
+
+n8n-ben kell hozzá egy **Qdrant** credential: URL `http://localhost:6333`,
+az API kulcs mező **üresen marad** (helyi példány, nincs hitelesítés).
+
+> A `04a` első lépése **eldobja a kollekciót**, mielőtt újratölt. A Qdrant node
+> nem tud törölni, és enélkül minden futás duplikálná a dokumentumokat.
+> Az első futásnál a kollekció még nem létezik — a hibát a node
+> `On Error → Continue` beállítása nyeli le.
+
+**Egy korlát:**
+
 - A fájlolvasó node **csak a `~/.n8n-files` mappából olvashat** — ez az n8n 2
   alapértelmezése (`restrictFileAccessTo`). Ezért a `rag-dokumentumok/`
   tartalmát oda kell másolni:
