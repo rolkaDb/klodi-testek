@@ -12,7 +12,7 @@
     {
       "parameters": {
         "method": "DELETE",
-        "url": "http://localhost:6333/collections/tudastar",
+        "url": "http://127.0.0.1:6333/collections/tudastar",
         "options": {}
       },
       "id": "e4000000-0000-4000-8000-000000000007",

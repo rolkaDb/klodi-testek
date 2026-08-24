@@ -74,6 +74,42 @@ SELECT activeVersionId FROM workflow_entity WHERE name LIKE '03%' AND active = 1
 SELECT versionId, createdAt FROM workflow_history WHERE workflowId = '...' ORDER BY createdAt;
 ```
 
+## localhost ≠ 127.0.0.1
+
+Helyi szolgáltatásoknál **mindig `127.0.0.1`-et írj**, ne `localhost`-ot.
+
+A Qdrant például csak IPv4-en figyel (`0.0.0.0:6333`), a `localhost` viszont
+Windowson gyakran előbb `::1`-re (IPv6) oldódik fel. Ha a kliens nem esik vissza
+IPv4-re, a kérés **el sem indul**. A hibaüzenet semmit nem árul el:
+
+    fetch failed
+
+A tünet megtévesztő, mert `curl http://localhost:6333` a parancssorból működhet
+— a curl máshogy old fel nevet, mint a Node.
+
+Ellenőrzés:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:6333/collections   # 200
+curl -s -o /dev/null -w "%{http_code}\n" http://[::1]:6333/collections       # 000
+```
+
+Ha a szerver naplójában **egyáltalán nem jelenik meg a kérés**, akkor nem a
+válasz hibás, hanem a kapcsolat nem jött létre — ez a névfeloldás gyanúja.
+
+## A hibatűrés elrejti a valódi hibát
+
+Az `On Error → Continue` beállítás azért kell, hogy a várt hibákat lenyelje
+(például „a kollekció még nem létezik"). De **a nem várt hibákat is elnyeli.**
+
+Konkrét eset: a RAG betöltés első lépése eldobja a Qdrant-kollekciót, hogy az
+újratöltés ne duplikáljon. A törlés `localhost`-ra ment, tehát némán elhasalt,
+az `On Error → Continue` továbbengedte, és a dokumentumok megduplázódtak. A
+workflow végig zöld volt.
+
+**Tanulság:** ahol hibát nyelsz el, oda tegyél ellenőrzést az eredményre is —
+itt például a pontok számának nézésére.
+
 ## Az LLM „majdnem strukturált" kimenete
 
 Ha a modelltől soralapú formátumot kérsz (`KULCS: érték`), számíts rá, hogy a
