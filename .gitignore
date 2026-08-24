@@ -1,6 +1,10 @@
 # Claude Code személyes beállításai – gépenként más
 .claude/settings.local.json
 
+# Az angol tanulóprogram saját repóban él (english/.git), de a mappa itt marad,
+# mert a README útvonalai a projekt gyökeréhez képest hivatkoznak rá.
+english/
+
 # Windows
 Thumbs.db
 desktop.ini
