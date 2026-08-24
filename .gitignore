@@ -1,5 +1,6 @@
-# Claude Code személyes beállításai – gépenként más
-.claude/settings.local.json
+# Claude Code helyi beállításai – gépenként mások, és a launch.json más
+# projektekre is mutathat. Nem tartoznak a workflow-khoz.
+.claude/
 
 # Az angol tanulóprogram saját repóban él (english/.git), de a mappa itt marad,
 # mert a README útvonalai a projekt gyökeréhez képest hivatkoznak rá.
