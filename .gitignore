@@ -6,6 +6,11 @@
 # mert a README útvonalai a projekt gyökeréhez képest hivatkoznak rá.
 english/
 
+# A Qdrant helyi adatbázisa – futásidejű állapot, a 04a workflow bármikor
+# újraépíti a dokumentumokból.
+storage/
+.qdrant-initialized
+
 # Windows
 Thumbs.db
 desktop.ini
