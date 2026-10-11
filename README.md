@@ -1,180 +1,155 @@
-# n8n workflow-k
+# n8n AI workflows
 
-AI-automatizáció n8n-nel, tanulási sorrendben. Minden workflow ingyenes
-szolgáltatásokkal fut: **Google Gemini** (AI Studio, bankkártya nélkül) és
-**Open-Meteo** (kulcs nélkül).
+Automation workflows built in [n8n](https://n8n.io/), in the order I learned
+them. Everything runs on free services: **Google Gemini** (AI Studio, no card
+required) and **Open-Meteo** (no key at all).
 
-## Indítás
+One of these is not an exercise: `03-osszetevo-fordito` is the live translation
+endpoint behind the [Mentes barcode app](https://github.com/rolkaDb/vonalkod).
+
+## The workflows
+
+| File | What it is | Needs |
+|---|---|---|
+| `01-idojaras-alapok.json` | n8n fundamentals, no AI | – |
+| `02-ai-agent-gemini.json` | An AI agent with tools and memory | Gemini |
+| `02-ai-agent-claude.json` | The same with Claude | Anthropic |
+| `03-osszetevo-fordito.json` | Webhook serving the Mentes app | Gemini |
+| `04a-rag-betoltes.json` | RAG: loading documents | Gemini |
+| `04b-rag-chat.json` | RAG: asking the knowledge base | Gemini |
+
+### 01. Weather (fundamentals)
+
+Schedule/Manual trigger → HTTP Request → Code → IF → Set.
+
+No AI in it, and that is deliberate: it teaches n8n's **item model**. Every node
+receives and returns a *list* of items. If 10 items go into an HTTP node, it
+sends 10 requests. This is n8n's least obvious rule.
+
+### 02. AI Agent
+
+Chat Trigger → AI Agent, with **sub-nodes** hanging below it: the model, memory
+and two tools (a calculator and the weather).
+
+Those hanging connectors are not data flow, they are **capabilities**. The agent
+decides for itself which tool to call, based on the text of each
+`toolDescription`. There is no `if (question contains "weather")` anywhere.
+
+### 03. Ingredient translator
+
+`POST /webhook/osszetevok`, with `{ code, lang, ingredientsText }` in the body
+and `{ ok, translatedText, translatedTraces }` in the response.
+
+It serves the [Mentes barcode app](https://github.com/rolkaDb/vonalkod): when an
+ingredient text is in a language the app's dictionary does not cover, this
+translates it into Hungarian. **The verdict is still produced by the app's
+deterministic engine** on the translated text. The AI never decides anything
+about an allergen.
+
+Details that matter:
+
+- The validation node rejects empty input and anything over 2,000 characters.
+  Anyone can post anything to a webhook.
+- In the prompt, the ingredient text sits inside an `<osszetevok>` block, marked
+  explicitly as **data, not instructions**. Basic protection against prompt
+  injection.
+- The model returns "contains" and "may contain traces" on separate lines. Left
+  as one block, every trace amount would turn into a block.
+- The translation node runs with **Retry On Fail** (3×, 2000 ms) and
+  **On Error → Continue**. Without that, a provider's 503 comes back as a 200
+  with an empty body.
+
+### 04a / 04b. RAG
+
+Two separate workflows, because RAG is two steps:
+
+```
+04a LOADING (once)
+  files → chunking → embedding → vector store
+
+04b ASKING (as often as you like)
+  question → embedding → similarity search → hits into the prompt → answer
+```
+
+The model **does not learn** the documents. On every question we retrieve the
+four most similar chunks and hand them to it alongside the question.
+
+Run `04a` first, then the chat in `04b`.
+
+The vector store is **Qdrant**, running as a native binary, so no Docker or WSL
+is needed. REST on `6333`, a web interface at `http://localhost:6333/dashboard`.
+It survives an n8n restart, which was the only reason for the switch: the earlier
+`Simple Vector Store` lived in memory and had to be reloaded every time.
+
+> The first step of `04a` **drops the collection** before reloading. The Qdrant
+> node cannot delete, and without this every run would duplicate the documents.
+> On the very first run the collection does not exist yet; the node's
+> `On Error → Continue` setting swallows that error.
+
+## Getting started
 
 ```bash
 npx n8n
 ```
 
-Első futáskor kb. 1 GB függőséget tölt le, utána 15–20 másodperc az indulás.
-Az editor a `http://localhost:5678` címen érhető el.
+The first run downloads around 1 GB of dependencies; after that it starts in
+15 to 20 seconds. The editor is at `http://localhost:5678`. Workflows,
+credentials and runs are stored under `~/.n8n/`, so they survive a restart.
 
-Az adatok — workflow-k, credentialok, futások — a `C:\Users\<felhasználó>\.n8n\`
-mappában maradnak, tehát újraindítás után is megvannak.
+> **n8n runs only while the terminal is open.** Close it and the webhooks go
+> down with it.
 
-> **Az n8n addig fut, amíg a terminál nyitva van.** Ha bezárod, a webhookok
-> is elérhetetlenné válnak.
+### Importing
 
-## Importálási szabály
+> **Every import needs an empty canvas.**
+> `Import from File` **adds** the file's contents to the open workflow, it does
+> not replace them. Imported onto a canvas that is not empty, the nodes get
+> mixed together and the workflow name is overwritten.
 
-> **Minden importhoz üres vászon kell.**
-> Az `Import from File` **hozzáadja** a fájl tartalmát a nyitott workflow-hoz,
-> nem cseréli le. Nem üres vászonra importálva a node-ok összekeverednek, és a
-> workflow neve is felülíródik.
+The right order: **Overview → Create Workflow → ⋯ → Import from File…**
 
-Helyes sorrend: **Overview → Create Workflow → ⋯ → Import from File…**
+After importing, the credential has to be **selected by hand** in the model
+nodes (`Gemini`, `Embeddings`). It is never part of the exported JSON.
 
-Import után a modell-node-okba (`Gemini`, `Embeddings`) **kézzel kell
-kiválasztani a credentialt** — az sosincs benne az exportált JSON-ban.
+> **Saving is not publishing.** `Ctrl+S` saves a new version, but a live webhook
+> keeps using the last published snapshot. After editing, press **Publish**, or
+> you get the old behaviour while the database already holds the new code.
 
-> **A mentés nem élesítés.** A `Ctrl+S` új verziót ment, de a futó webhook a
-> korábbi, publikált pillanatképet használja. Szerkesztés után **nyomj
-> `Publish`-t**, különben a régi viselkedést kapod, miközben az adatbázisban
-> már az új kód áll.
+### File access for RAG
 
-## A workflow-k
-
-| Fájl | Mi ez | Kell hozzá |
-|---|---|---|
-| `01-idojaras-alapok.json` | Az n8n alapjai AI nélkül | – |
-| `02-ai-agent-gemini.json` | AI agent eszközökkel és memóriával | Gemini |
-| `02-ai-agent-claude.json` | Ugyanaz Claude-dal | Anthropic |
-| `03-osszetevo-fordito.json` | Webhook a Mentes vonalkód-apphoz | Gemini |
-| `04a-rag-betoltes.json` | RAG: dokumentumok betöltése | Gemini |
-| `04b-rag-chat.json` | RAG: kérdezés a tudástárból | Gemini |
-
-### 01 — Időjárás (alapok)
-
-Schedule/Manual trigger → HTTP Request → Code → IF → Set.
-
-AI nincs benne, és ez szándékos: az n8n **item-modelljét** tanítja. Minden node
-item-ek *listáját* kapja és adja vissza. Ha 10 item megy egy HTTP node-ba, az
-10 kérést küld. Ez az n8n legkevésbé nyilvánvaló szabálya.
-
-### 02 — AI Agent
-
-Chat Trigger → AI Agent, alatta lelógó **sub-node**-okkal: modell, memória és
-két eszköz (kalkulátor, időjárás).
-
-A lelógó csatlakozók nem adatfolyamot jelentenek, hanem **képességeket**. Az
-agent maga dönti el, melyik eszközt hívja meg — a `toolDescription` szövege
-alapján. Nincs sehol `if (kérdés tartalmaz "időjárás")`.
-
-### 03 — Összetevő-fordító
-
-`POST /webhook/osszetevok`, törzsben `{ code, lang, ingredientsText }`,
-válaszban `{ ok, translatedText, translatedTraces }`.
-
-A [Mentes vonalkód-appot](https://github.com/) szolgálja ki: ha az összetevő-
-szöveg olyan nyelven van, amit az app szótára nem ismer, ez lefordítja magyarra.
-**Az ítéletet továbbra is az app determinisztikus motorja hozza** a fordításon —
-az AI nem dönt allergénről.
-
-Fontos részletek:
-- Az `Ellenőrzés` node üres és 2000 karakternél hosszabb szöveget elutasít.
-  A webhookra bárki küldhet bármit.
-- A promptban az összetevő-szöveg `<osszetevok>` blokkban van, kifejezetten
-  **adatként, nem utasításként** megjelölve. Prompt injection elleni alapvédelem.
-- A modell külön sorban adja vissza a „tartalmaz" és a „nyomokban tartalmazhat"
-  részt. Egyben hagyva minden nyomnyi allergén tiltássá válna.
-- A `Fordítás` node **Retry On Fail** (3×, 2000 ms) és **On Error → Continue**
-  beállítással fut. Enélkül egy szolgáltatói 503 üres törzsű 200-as választ ad.
-
-**Publikálni kell** (`Publish` gomb), különben az éles webhook URL nem él.
-
-### 04a / 04b — RAG
-
-Két külön workflow, mert a RAG két lépés:
-
-```
-04a BETÖLTÉS (egyszer)
-  fájlok → darabolás → embedding → vektortár
-
-04b KÉRDEZÉS (ahányszor akarod)
-  kérdés → embedding → hasonlóság-keresés → találatok a promptba → válasz
-```
-
-A modell **nem tanulja meg** a dokumentumokat. Minden kérdésnél kikeressük a 4
-leginkább hasonló szövegdarabot, és odaadjuk neki a kérdés mellé.
-
-Előbb a `04a`-t futtasd, csak utána a `04b` chatjét.
-
-### Qdrant
-
-A vektortár **Qdrant**, natív Windows binárisként — nem kell hozzá Docker és WSL:
-
-```
-D:\qdrant\qdrant.exe        # indítás: a saját mappájából futtatva
-```
-
-REST a `6333`-on, webes felület a `http://localhost:6333/dashboard` címen, az
-adatok a `D:\qdrant\storage` alatt. **Az n8n újraindítását túléli** — ez volt a
-váltás egyetlen oka. (A korábbi `Simple Vector Store` memóriában élt, és minden
-újraindítás után újra kellett tölteni; az a változat a git history-ban megvan.)
-
-n8n-ben kell hozzá egy **Qdrant** credential: URL `http://localhost:6333`,
-az API kulcs mező **üresen marad** (helyi példány, nincs hitelesítés).
-
-> A `04a` első lépése **eldobja a kollekciót**, mielőtt újratölt. A Qdrant node
-> nem tud törölni, és enélkül minden futás duplikálná a dokumentumokat.
-> Az első futásnál a kollekció még nem létezik — a hibát a node
-> `On Error → Continue` beállítása nyeli le.
-
-**Egy korlát:**
-
-- A fájlolvasó node **csak a `~/.n8n-files` mappából olvashat** — ez az n8n 2
-  alapértelmezése (`restrictFileAccessTo`). Ezért a `rag-dokumentumok/`
-  tartalmát oda kell másolni:
+The file reader node can only read from `~/.n8n-files`, which is n8n 2's default
+(`restrictFileAccessTo`). Copy the documents there:
 
 ```bash
 cp rag-dokumentumok/*.md ~/.n8n-files/rag-dokumentumok/
 ```
 
-Máshonnan olvasva „Access to the file is not allowed." hibát kapsz. Más mappát
-a `N8N_RESTRICT_FILE_ACCESS_TO` változóval engedhetsz (pontosvesszővel több is),
-de gondold végig, mit engedsz be: az n8n-t elérő bármelyik workflow onnantól
-olvashatja azokat a fájlokat.
+Reading from anywhere else gives "Access to the file is not allowed." You can
+widen this with `N8N_RESTRICT_FILE_ACCESS_TO`, but think about what you are
+letting in: from then on, any workflow that reaches this n8n can read those
+files.
+
+### Gemini key
+
+`aistudio.google.com/apikey` → **Create API key**. No card required. In n8n the
+credential is called **Google Gemini(PaLM) Api**.
+
+The free tier has a per-minute request limit that differs by model. An agent
+makes **several calls per question**: every tool-calling round is another
+request. If you see a lot of `429`s, switch to a Flash or Flash-Lite model.
 
 ## rag-dokumentumok/
 
-A `04a` ezeket tölti be. Egyben a mai tanulságok írásos formája is:
+What `04a` loads, and at the same time the written-up version of what these
+workflows taught me:
 
-- `n8n-buktatok.md` — elavult node-ok, `$fromAI`, típusnév-konvenciók,
-  pontos hibaüzenetekkel
-- `gemini-ingyenes.md` — kvóták, mikor kell agent és mikor elég egy lánc
-- `vonalkod-app-tervezes.md` — az app ítélet-rangsora és forrásjelölése
+- `n8n-buktatok.md`: deprecated nodes, `$fromAI`, type-name conventions, with
+  the exact error messages
+- `gemini-ingyenes.md`: quotas, when you need an agent and when a chain is
+  enough
+- `vonalkod-app-tervezes.md`: the Mentes app's verdict ranking and source
+  marking
 
-Nyugodtan tegyél be továbbiakat, és futtasd újra a `04a`-t. A `clearStore: true`
-miatt minden alkalommal tiszta lappal tölt, nem duplikálódik.
+---
 
-## Gemini kulcs
-
-`aistudio.google.com/apikey` → **Create API key**. Bankkártya nem kell.
-n8n-ben a credential neve: **Google Gemini(PaLM) Api**.
-
-Az ingyenes szint percenkénti kéréskorláttal dolgozik, modellenként eltérően.
-Egy agent **kérdésenként több hívást** csinál — minden eszközhívási kör egy
-újabb kérés. Ha sok a `429`, válts Flash vagy Flash-Lite modellre.
-
-A modellek elavulnak és időnként túlterheltek. A dropdown élőben töltődik a
-kulcsoddal, tehát mindig azt mutatja, ami neked ténylegesen elérhető.
-
-## Hibakeresés
-
-A node alatti **Logs** panel kiírja a szolgáltatótól kapott nyers hibát. Ezt
-nézd meg először — általában pontosan megmondja a megoldást.
-
-Mélyebb vizsgálathoz az n8n adatbázisa olvasható:
-
-```bash
-node -e "const {DatabaseSync}=require('node:sqlite');
-const db=new DatabaseSync(process.env.USERPROFILE+'/.n8n/database.sqlite',{readOnly:true});
-console.log(db.prepare('SELECT id,status,workflowId FROM execution_entity ORDER BY id DESC LIMIT 5').all())"
-```
-
-A `workflow_entity` táblából az is kiderül, milyen node-ok és bekötések vannak
-ténylegesen elmentve — hasznos, ha az n8n import közben csendben eldobott valamit.
+*A magyar nyelvű változat: [README.hu.md](README.hu.md)*
